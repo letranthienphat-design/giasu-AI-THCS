@@ -3,6 +3,7 @@ from google import genai
 from google.genai import types
 from PIL import Image
 import os
+import time
 
 # 1. CẤU HÌNH TRANG WEB
 st.set_page_config(
@@ -17,9 +18,9 @@ if "messages" not in st.session_state:
 if "usage_count" not in st.session_state:
     st.session_state.usage_count = 0
 
-DAILY_LIMIT = 50  # Hạn mức miễn phí mỗi ngày (dễ thuyết trình bài toán kinh doanh)
+DAILY_LIMIT = 50  # Hạn mức miễn phí mỗi ngày
 
-# 3. LẤY API KEY (Ưu tiên lấy từ Streamlit Secrets khi đưa lên mạng)
+# 3. LẤY API KEY (Ưu tiên lấy từ Streamlit Secrets)
 api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 
 # 4. GIAO DIỆN THANH BÊN TRÁI (SIDEBAR)
@@ -27,13 +28,11 @@ with st.sidebar:
     st.header("🎓 Gia Sư AI THCS")
     st.caption("Phương pháp Socratic: Gợi mở tư duy, không giải hộ bài tập.")
     
-    # Nếu chưa cấu hình Secrets trên Cloud thì cho phép nhập tay để test
     if not api_key:
         api_key = st.text_input("🔑 Nhập Gemini API Key:", type="password")
     
     st.divider()
     
-    # Bộ lọc môn học & chế độ (Điểm ăn tiền cho dự án khởi nghiệp)
     mon_hoc = st.selectbox(
         "📚 Chọn môn học:",
         ["Toán học", "Tin học (Python/Scratch)", "Vật lý", "Hóa học", "Ngữ văn", "Tiếng Anh"]
@@ -50,7 +49,6 @@ with st.sidebar:
     
     st.divider()
     
-    # Hiển thị trạng thái & Hạn mức giống giao diện mẫu
     st.markdown("**👤 Chế độ Khách (Dùng thử)**")
     st.progress(min(st.session_state.usage_count / DAILY_LIMIT, 1.0))
     st.caption(f"Đã dùng: **{st.session_state.usage_count} / {DAILY_LIMIT}** lượt hôm nay")
@@ -61,12 +59,11 @@ with st.sidebar:
 
 # 5. GIAO DIỆN CHÍNH (MAIN SCREEN)
 st.title("⚡ Gia Sư AI - Đồng Hành Tư Duy")
-st.info(f"📌 Đang học môn: **{mon_hoc}** | Chế độ: **{che_do}** | Mô hình: `gemini-2.5-flash`")
+st.info(f"📌 Đang học môn: **{mon_hoc}** | Chế độ: **{che_do}** | Mô hình: `Gemini 3.8 Flash`")
 
 if st.session_state.usage_count >= DAILY_LIMIT:
-    st.warning("⚠️ Bạn đã hết 15 lượt hỏi miễn phí trong ngày! Vui lòng nâng cấp gói Pro hoặc quay lại vào ngày mai.")
+    st.warning(f"⚠️ Bạn đã hết {DAILY_LIMIT} lượt hỏi miễn phí trong ngày! Vui lòng quay lại vào ngày mai.")
 
-# Khung tải ảnh bài tập (Tùy chọn)
 uploaded_file = st.file_uploader("📸 Chụp ảnh đề bài hoặc bài làm của em (nếu có):", type=["png", "jpg", "jpeg"])
 image_data = None
 if uploaded_file is not None:
@@ -75,7 +72,6 @@ if uploaded_file is not None:
 
 st.divider()
 
-# Hiển thị lịch sử trò chuyện
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -92,12 +88,10 @@ if prompt:
         st.error("Bạn đã đạt giới hạn lượt dùng miễn phí hôm nay!")
         st.stop()
 
-    # Lưu và hiển thị câu hỏi của học sinh
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Thiết lập Luật chống giải hộ (System Prompt)
     system_instruction = f"""
     Bạn là một gia sư AI thân thiện, kiên nhẫn dành riêng cho học sinh THCS (lớp 6 đến lớp 9) tại Việt Nam.
     Môn học hiện tại: {mon_hoc}.
@@ -110,13 +104,11 @@ if prompt:
     4. Trình bày rõ ràng, ngắn gọn, dùng ngôn ngữ gần gũi với học sinh cấp 2. Sử dụng công thức toán học chuẩn LaTeX ($...$) nếu cần.
     """
 
-    # Gọi API Gemini
     with st.chat_message("assistant"):
         with st.spinner("Gia sư đang phân tích đề bài..."):
             try:
                 client = genai.Client(api_key=api_key)
                 
-                # Chuẩn bị nội dung gửi đi (gồm lịch sử chat + ảnh nếu có)
                 contents = []
                 for m in st.session_state.messages[:-1]:
                     role_gemini = "user" if m["role"] == "user" else "model"
@@ -127,19 +119,36 @@ if prompt:
                     current_parts.append(image_data)
                 contents.append(types.Content(role="user", parts=current_parts))
 
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        temperature=0.4,
-                    )
-                )
+                # Tự động luân chuyển giữa các mô hình để tránh lỗi quá tải 503
+                models_to_try = ["gemini-3.8-flash-lite", "gemini-2.0-flash", "gemini-3.8-flash"]
+                response = None
+                last_error = None
+
+                for current_model in models_to_try:
+                    try:
+                        response = client.models.generate_content(
+                            model=current_model,
+                            contents=contents,
+                            config=types.GenerateContentConfig(
+                                system_instruction=system_instruction,
+                                temperature=0.4,
+                            )
+                        )
+                        break
+                    except Exception as err:
+                        last_error = err
+                        if "503" in str(err) or "429" in str(err) or "404" in str(err):
+                            time.sleep(1)
+                            continue
+                        else:
+                            raise err
+
+                if response is None:
+                    raise last_error
                 
                 reply_text = response.text
                 st.markdown(reply_text)
                 
-                # Lưu câu trả lời và tăng bộ đếm hạn mức
                 st.session_state.messages.append({"role": "assistant", "content": reply_text})
                 st.session_state.usage_count += 1
                 
