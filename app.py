@@ -122,8 +122,8 @@ if prompt:
                     current_parts.append(image_data)
                 contents.append(types.Content(role="user", parts=current_parts))
 
-                # Tự động luân chuyển giữa các mô hình hợp lệ để tránh treo và quá tải 503
-                models_to_try = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+                # Chỉ dùng các mô hình thế hệ mới được tài khoản hỗ trợ
+                models_to_try = ["gemini-3.8-flash", "gemini-3.8-flash", "gemini-3.8-pro"]
                 response = None
                 last_error = None
 
@@ -141,7 +141,7 @@ if prompt:
                             break
                     except Exception as err:
                         last_error = err
-                        time.sleep(1)
+                        time.sleep(2)
                         continue
 
                 if response is None or not response.text:
