@@ -59,7 +59,7 @@ with st.sidebar:
 
 # 5. GIAO DIỆN CHÍNH (MAIN SCREEN)
 st.title("⚡ Gia Sư AI - Đồng Hành Tư Duy")
-st.info(f"📌 Đang học môn: **{mon_hoc}** | Chế độ: **{che_do}** | Mô hình: `Gemini 3.8 Flash`")
+st.info(f"📌 Đang học môn: **{mon_hoc}** | Chế độ: **{che_do}** | Mô hình: `Gemini AI`")
 
 if st.session_state.usage_count >= DAILY_LIMIT:
     st.warning(f"⚠️ Bạn đã hết {DAILY_LIMIT} lượt hỏi miễn phí trong ngày! Vui lòng quay lại vào ngày mai.")
@@ -109,9 +109,21 @@ if prompt:
             try:
                 client = genai.Client(
                     api_key=api_key,
-                    http_options=types.HttpOptions(timeout=15000)
+                    http_options=types.HttpOptions(timeout=20000)
                 )
                 
+                # Tự động lấy danh sách các mô hình Gemini hợp lệ từ chính API Key của bạn
+                available_models = []
+                for m in client.models.list():
+                    name = m.name.replace("models/", "")
+                    if "gemini" in name and "flash" in name and "embedding" not in name and "tts" not in name and "image" not in name:
+                        available_models.append(name)
+                
+                # Ưu tiên bản mới nhất trước, nếu không tìm thấy thì dùng danh sách mặc định
+                available_models.sort(reverse=True)
+                if not available_models:
+                    available_models = ["gemini-2.5-flash", "gemini-2.0-flash"]
+
                 contents = []
                 for m in st.session_state.messages[:-1]:
                     role_gemini = "user" if m["role"] == "user" else "model"
@@ -122,12 +134,11 @@ if prompt:
                     current_parts.append(image_data)
                 contents.append(types.Content(role="user", parts=current_parts))
 
-                # Chỉ dùng các mô hình thế hệ mới được tài khoản hỗ trợ
-                models_to_try = ["gemini-3.8-flash", "gemini-3.8-flash", "gemini-3.8-pro"]
                 response = None
                 last_error = None
 
-                for current_model in models_to_try:
+                # Thử lần lượt các mô hình thực tế có trong tài khoản
+                for current_model in available_models[:3]:
                     try:
                         response = client.models.generate_content(
                             model=current_model,
