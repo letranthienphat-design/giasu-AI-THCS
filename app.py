@@ -109,7 +109,7 @@ if prompt:
             try:
                 client = genai.Client(
                     api_key=api_key,
-                    http_options=types.HttpOptions(timeout=8000)
+                    http_options=types.HttpOptions(timeout=15000)
                 )
                 
                 contents = []
@@ -122,8 +122,8 @@ if prompt:
                     current_parts.append(image_data)
                 contents.append(types.Content(role="user", parts=current_parts))
 
-                # Tự động luân chuyển giữa các mô hình để tránh treo và quá tải 503
-                models_to_try = ["gemini-2.0-flash", "gemini-3.8-flash", "gemini-3.8-flash-lite"]
+                # Tự động luân chuyển giữa các mô hình hợp lệ để tránh treo và quá tải 503
+                models_to_try = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
                 response = None
                 last_error = None
 
