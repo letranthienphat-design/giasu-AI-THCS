@@ -17,7 +17,7 @@ if "messages" not in st.session_state:
 if "usage_count" not in st.session_state:
     st.session_state.usage_count = 0
 
-DAILY_LIMIT = 15  # Hạn mức miễn phí mỗi ngày (dễ thuyết trình bài toán kinh doanh)
+DAILY_LIMIT = 50  # Hạn mức miễn phí mỗi ngày (dễ thuyết trình bài toán kinh doanh)
 
 # 3. LẤY API KEY (Ưu tiên lấy từ Streamlit Secrets khi đưa lên mạng)
 api_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
