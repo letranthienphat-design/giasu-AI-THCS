@@ -112,7 +112,7 @@ if prompt:
                 contents = []
                 for m in st.session_state.messages[:-1]:
                     role_gemini = "user" if m["role"] == "user" else "model"
-                    contents.append(types.Content(role=role_gemini, parts=[types.Part.from_text(text=m["content"])]))
+                   client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=8000))
                 
                 current_parts = [types.Part.from_text(text=prompt)]
                 if image_data is not None:
@@ -124,7 +124,7 @@ if prompt:
                 response = None
                 last_error = None
 
-                for current_model in models_to_try:
+               models_to_try = ["gemini-2.0-flash", "gemini-3.8-flash", "gemini-3.8-flash-lite"]
                     try:
                         response = client.models.generate_content(
                             model=current_model,
