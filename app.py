@@ -107,24 +107,27 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Gia sư đang phân tích đề bài..."):
             try:
-                client = genai.Client(api_key=api_key)
+                client = genai.Client(
+                    api_key=api_key,
+                    http_options=types.HttpOptions(timeout=8000)
+                )
                 
                 contents = []
                 for m in st.session_state.messages[:-1]:
                     role_gemini = "user" if m["role"] == "user" else "model"
-                   client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=8000))
+                    contents.append(types.Content(role=role_gemini, parts=[types.Part.from_text(text=m["content"])]))
                 
                 current_parts = [types.Part.from_text(text=prompt)]
                 if image_data is not None:
                     current_parts.append(image_data)
                 contents.append(types.Content(role="user", parts=current_parts))
 
-                # Tự động luân chuyển giữa các mô hình để tránh lỗi quá tải 503
-                models_to_try = ["gemini-3.8-flash-lite", "gemini-2.0-flash", "gemini-3.8-flash"]
+                # Tự động luân chuyển giữa các mô hình để tránh treo và quá tải 503
+                models_to_try = ["gemini-2.0-flash", "gemini-3.8-flash", "gemini-3.8-flash-lite"]
                 response = None
                 last_error = None
 
-               models_to_try = ["gemini-2.0-flash", "gemini-3.8-flash", "gemini-3.8-flash-lite"]
+                for current_model in models_to_try:
                     try:
                         response = client.models.generate_content(
                             model=current_model,
@@ -134,16 +137,14 @@ if prompt:
                                 temperature=0.4,
                             )
                         )
-                        break
+                        if response and response.text:
+                            break
                     except Exception as err:
                         last_error = err
-                        if "503" in str(err) or "429" in str(err) or "404" in str(err):
-                            time.sleep(1)
-                            continue
-                        else:
-                            raise err
+                        time.sleep(1)
+                        continue
 
-                if response is None:
+                if response is None or not response.text:
                     raise last_error
                 
                 reply_text = response.text
